@@ -8,7 +8,7 @@ from sklearn.model_selection import train_test_split
 def generate_data(n, alpha0, alpha1A, alpha1B, time_steps):
     b_0, b_1 = multivariate_normal.rvs(mean=np.zeros(2), cov=np.array([[1, 0.5],[0.5, 1]]), size=n).transpose()
     t = np.arange(time_steps)
-    epsilon = norm.rvs(loc=0, scale=0.2, size=n*time_steps)
+    epsilon = norm.rvs(loc=0, scale=1, size=n*time_steps)
     
     Y_A = []
     Y_B = []
@@ -100,5 +100,29 @@ def regression_imputation(data):
 
 def multiple_imputation(data):            
     pass
+
+def RNN_MSE(data):
+    data_ = data[0]
+    labels = data[1]
+    X_train, X_test, y_train, y_test = train_test_split(data_, labels, test_size=0.20, random_state=42)
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+    X_test = np.array(X_test)
+    y_test = np.array(y_test)
+
+    model = keras.models.Sequential()
+
+    model.add(layers.SimpleRNN(32, input_shape=(10,1)))
+    model.add(layers.Dense(1, activation="sigmoid"))
+
+    model.compile(
+        loss="binary_crossentropy",
+        optimizer="sgd",
+        metrics=["accuracy"],
+    )
+    model.fit(X_train, y_train, epochs=10)
+
+    score = model.evaluate(X_test, y_test, verbose = 0) 
+    return score[1]
 
 

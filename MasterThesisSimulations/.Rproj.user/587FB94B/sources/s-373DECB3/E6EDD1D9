@@ -1,0 +1,31 @@
+{
+    "id": "E6EDD1D9",
+    "path": "C:/Users/aurelebartolomeo/Desktop/cours/master_dats/memoire/MasterThesisSimulations/SVMSimulations.Rmd",
+    "project_path": "SVMSimulations.Rmd",
+    "type": "r_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1657445610783.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "215,12",
+        "scrollLine": "189",
+        "last_setup_crc32": "",
+        "content_preview_inline": "true",
+        "content_preview_enabled": "true",
+        "chunk_output_type": "console"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1657708200,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1657708208837,
+    "read_only": false,
+    "read_only_alternatives": []
+}

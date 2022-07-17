@@ -1,0 +1,222 @@
+---
+title: "Impact of missing values on Support Vector Machines"
+author: "Aurèle Bartolomeo"
+date: "10/07/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# R setup and imports
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(reticulate)
+library(ggplot2)
+```
+
+# Python setup and imports
+```{python}
+from sklearn.datasets import make_classification
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+
+```
+
+# Data generation Visualization
+
+## 2D Example
+```{python}
+
+
+X1, Y1 = make_classification(n_samples=1000, n_informative=2,
+    n_features=2, n_redundant=0, n_clusters_per_class=1, random_state = 0
+)
+fig = plt.figure()
+ax = fig.add_subplot()
+ax.scatter(X1[:, 0], X1[:, 1], marker="o", c=Y1, s=25, edgecolor="k")
+
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+
+ax.set_title("Example of 2 dimensional data.")
+
+plt.show()
+```
+
+## 3D Example
+
+```{python}
+
+
+X2, Y2 = make_classification(n_samples=10000, n_informative=2,
+    n_features=3, n_redundant=0, n_clusters_per_class=1, random_state = 0
+)
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+ax.scatter(X2[:, 0], X2[:, 1], X2[:,2], marker="o", c=Y2, s=25, edgecolor="k")
+
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+
+ax.set_title("Example of 3 dimensional data.")
+
+plt.show()
+
+```
+
+
+# Simulations
+
+```{python}
+
+# useful functions
+
+def generate_data(n_samples, n_informative, n_features, n_redundant, random_state):
+  X, Y = make_classification(n_samples=int(n_samples), n_informative=int(n_informative),
+    n_features=int(n_features), flip_y=0.01, n_redundant=int(n_redundant), n_clusters_per_class=1, random_state = int(random_state))
+  return (X, Y)
+
+def mask_data_mcar(X, prob):
+  X = X.copy()
+  mask = np.random.binomial(n=1,p=prob,size=X.shape).astype(bool)
+  X[mask] = None
+  return X
+
+def svcPerf(X_train, X_test, y_train, y_test):
+  svc = SVC()
+  svc.fit(X_train, y_train)
+  return svc.score(X_test, y_test)
+  
+
+```
+
+```{r}
+# data generation
+perf = c()
+perf_NA = c()
+for(i in 1:100){
+XY = py$generate_data(n_samples=100, n_informative=3,
+    n_features=3, n_redundant=0, random_state = i)
+X = XY[[1]]
+Y = XY[[2]]
+
+X_NA = py$mask_data_mcar(X, prob = 0.2)
+
+X_NA_imputed = mice::complete(mice::mice(X_NA))
+
+splitted = py$train_test_split(X, Y, test_size=0.2, random_state=as.integer(i))
+X_train = splitted[[1]]
+X_test = splitted[[2]]
+y_train = splitted[[3]]
+y_test = splitted[[4]]
+
+splitted = py$train_test_split(X_NA_imputed, Y, test_size=0.2, random_state=as.integer(i))
+X_train_NA = splitted[[1]]
+X_test_NA = splitted[[2]]
+y_train_NA = splitted[[3]]
+y_test_NA = splitted[[4]]
+
+perf = append(perf, py$svcPerf(X_train, X_test, y_train, y_test))
+perf_NA = append(perf_NA, py$svcPerf(X_train_NA, X_test_NA, y_train_NA, y_test_NA))
+
+}
+
+```
+
+
+
+```{r}
+run_simulation = function(n=1000, n_it=100, missing_mechanism, prob=NULL, print=TRUE){
+
+if(missing_mechanism=="MCAR"){
+perf = c()
+perf_mean = c()
+perf_reg = c()
+perf_s_reg = c()
+perf_mi = c()
+
+for(i in 1:n_it){
+XY = py$generate_data(n_samples=n, n_informative=8,
+    n_features=10, n_redundant=2, random_state = i)
+X = XY[[1]]
+Y = XY[[2]]
+
+X_NA = py$mask_data_mcar(X, prob = prob)
+
+X_NA_mean = mice::complete(mice::mice(X_NA, method="mean", m=1, maxit=1))
+X_NA_reg = mice::complete(mice::mice(X_NA, method="norm.predict", m=1))
+print("reg")
+X_NA_s_reg = mice::complete(mice::mice(X_NA, method="norm.nob", m=1))
+print("s_reg")
+X_NA_mi = mice::complete(mice::mice(X_NA, m=10, maxit = 5))
+
+splitted = py$train_test_split(X, Y, test_size=0.2, random_state=as.integer(i))
+X_train = splitted[[1]]
+X_test = splitted[[2]]
+y_train = splitted[[3]]
+y_test = splitted[[4]]
+
+splitted = py$train_test_split(X_NA_mean, Y, test_size=0.2, random_state=as.integer(i))
+X_train_mean = splitted[[1]]
+X_test_mean = splitted[[2]]
+y_train_mean = splitted[[3]]
+y_test_mean = splitted[[4]]
+
+splitted = py$train_test_split(X_NA_reg, Y, test_size=0.2, random_state=as.integer(i))
+X_train_reg = splitted[[1]]
+X_test_reg = splitted[[2]]
+y_train_reg = splitted[[3]]
+y_test_reg = splitted[[4]]
+
+splitted = py$train_test_split(X_NA_s_reg, Y, test_size=0.2, random_state=as.integer(i))
+X_train_s_reg = splitted[[1]]
+X_test_s_reg = splitted[[2]]
+y_train_s_reg = splitted[[3]]
+y_test_s_reg = splitted[[4]]
+
+splitted = py$train_test_split(X_NA_mi, Y, test_size=0.2, random_state=as.integer(i))
+X_train_mi = splitted[[1]]
+X_test_mi = splitted[[2]]
+y_train_mi = splitted[[3]]
+y_test_mi = splitted[[4]]
+
+perf = append(perf, py$svcPerf(X_train, X_test, y_train, y_test))
+perf_mean = append(perf_mean, py$svcPerf(X_train_mean, X_test_mean, y_train_mean, y_test_mean))
+perf_reg = append(perf_reg, py$svcPerf(X_train_reg, X_test_reg, y_train_reg, y_test_reg))
+perf_s_reg = append(perf_s_reg, py$svcPerf(X_train_s_reg, X_test_s_reg, y_train_s_reg, y_test_s_reg))
+perf_mi = append(perf_mi, py$svcPerf(X_train_mi, X_test_mi, y_train_mi, y_test_mi))
+
+
+}
+perf_data = data.frame(perf, perf_mean, perf_reg, perf_s_reg, perf_mi)
+return (perf_data)
+
+}else if(missing_mechanism=="MAR"){
+  return (0)
+  
+}else{
+  return (0)
+}
+}
+```
+
+
+
+```{r}
+perfs = run_simulation(n=1000, n_it=5, missing_mechanism = "MCAR", prob = 0.2)
+```
+
+
+```{r}
+ggplot(perfs)
+```
+
+
+
+
+
