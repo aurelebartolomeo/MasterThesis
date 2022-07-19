@@ -33,11 +33,11 @@ from sklearn.model_selection import train_test_split
 
 
 X1, Y1 = make_classification(n_samples=1000, n_informative=2,
-    n_features=2, n_redundant=0, n_clusters_per_class=1, random_state = 0
+    n_features=2, n_redundant=0, n_clusters_per_class=2, random_state = 0, n_classes = 2
 )
 fig = plt.figure()
 ax = fig.add_subplot()
-ax.scatter(X1[:, 0], X1[:, 1], marker="o", c=Y1, s=25, edgecolor="k")
+ax.scatter(X1[:, 0], X1[:, 1] , marker="o", c=Y1, s=25, edgecolor="k")
 
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
@@ -87,6 +87,46 @@ def mask_data_mcar(X, prob):
   X[mask] = None
   return X
 
+def mask_data_mar(X, prob1=0.2, prob2=0.5):
+  X = X.copy()
+  n = len(X)
+  p = len(X[0])
+  m = np.median(X[:,0])
+  mask = []
+  prob3 = (prob1 + prob2)/2
+  for i in range(n):
+    if(X[i,0]<= m):
+      arr = np.random.binomial(n=1,p=prob1,size=p-1).astype(bool)
+    else:
+      arr = np.random.binomial(n=1,p=prob2,size=p-1).astype(bool)
+    
+    mask_line = np.append(np.random.binomial(n=1,p=prob3,size=1).astype(bool), arr)
+    mask.append(mask_line)
+
+  X[np.array(mask)]=None
+  return X
+
+def mask_data_mnar(X, prob1=0.2, prob2=0.5):
+  X = X.copy()
+  n = len(X)
+  p = len(X[0])
+  m = np.median(X)
+  mask = []
+  for i in range(n):
+    mask_line = []
+    for j in range(p):
+      if(X[i,j]<= m):
+        arr = np.random.binomial(n=1,p=prob1,size=1).astype(bool)
+      else:
+        arr = np.random.binomial(n=1,p=prob2,size=1).astype(bool)
+    
+      mask_line = np.append(mask_line, arr)
+    mask.append(mask_line)
+
+  X[np.array(mask).astype(bool)]=None
+  return X
+  
+
 def svcPerf(X_train, X_test, y_train, y_test):
   svc = SVC()
   svc.fit(X_train, y_train)
@@ -131,84 +171,332 @@ perf_NA = append(perf_NA, py$svcPerf(X_train_NA, X_test_NA, y_train_NA, y_test_N
 
 
 ```{r}
-run_simulation = function(n=1000, n_it=100, missing_mechanism, prob=NULL, print=TRUE){
-
-if(missing_mechanism=="MCAR"){
-perf = c()
-perf_mean = c()
-perf_reg = c()
-perf_s_reg = c()
-perf_mi = c()
-
-for(i in 1:n_it){
-XY = py$generate_data(n_samples=n, n_informative=8,
-    n_features=10, n_redundant=2, random_state = i)
-X = XY[[1]]
-Y = XY[[2]]
-
-X_NA = py$mask_data_mcar(X, prob = prob)
-
-X_NA_mean = mice::complete(mice::mice(X_NA, method="mean", m=1, maxit=1))
-X_NA_reg = mice::complete(mice::mice(X_NA, method="norm.predict", m=1))
-print("reg")
-X_NA_s_reg = mice::complete(mice::mice(X_NA, method="norm.nob", m=1))
-print("s_reg")
-X_NA_mi = mice::complete(mice::mice(X_NA, m=10, maxit = 5))
-
-splitted = py$train_test_split(X, Y, test_size=0.2, random_state=as.integer(i))
-X_train = splitted[[1]]
-X_test = splitted[[2]]
-y_train = splitted[[3]]
-y_test = splitted[[4]]
-
-splitted = py$train_test_split(X_NA_mean, Y, test_size=0.2, random_state=as.integer(i))
-X_train_mean = splitted[[1]]
-X_test_mean = splitted[[2]]
-y_train_mean = splitted[[3]]
-y_test_mean = splitted[[4]]
-
-splitted = py$train_test_split(X_NA_reg, Y, test_size=0.2, random_state=as.integer(i))
-X_train_reg = splitted[[1]]
-X_test_reg = splitted[[2]]
-y_train_reg = splitted[[3]]
-y_test_reg = splitted[[4]]
-
-splitted = py$train_test_split(X_NA_s_reg, Y, test_size=0.2, random_state=as.integer(i))
-X_train_s_reg = splitted[[1]]
-X_test_s_reg = splitted[[2]]
-y_train_s_reg = splitted[[3]]
-y_test_s_reg = splitted[[4]]
-
-splitted = py$train_test_split(X_NA_mi, Y, test_size=0.2, random_state=as.integer(i))
-X_train_mi = splitted[[1]]
-X_test_mi = splitted[[2]]
-y_train_mi = splitted[[3]]
-y_test_mi = splitted[[4]]
-
-perf = append(perf, py$svcPerf(X_train, X_test, y_train, y_test))
-perf_mean = append(perf_mean, py$svcPerf(X_train_mean, X_test_mean, y_train_mean, y_test_mean))
-perf_reg = append(perf_reg, py$svcPerf(X_train_reg, X_test_reg, y_train_reg, y_test_reg))
-perf_s_reg = append(perf_s_reg, py$svcPerf(X_train_s_reg, X_test_s_reg, y_train_s_reg, y_test_s_reg))
-perf_mi = append(perf_mi, py$svcPerf(X_train_mi, X_test_mi, y_train_mi, y_test_mi))
-
-
-}
-perf_data = data.frame(perf, perf_mean, perf_reg, perf_s_reg, perf_mi)
-return (perf_data)
-
-}else if(missing_mechanism=="MAR"){
-  return (0)
+run_simulation = function(n = 1000,
+                          n_it = 100,
+                          prob = NULL) {
+  results = data.frame()
   
-}else{
-  return (0)
-}
+  for (p in prob) {
+    perf = c("complete", "--", p)
+    
+    perf_mean_MCAR = c("MCAR", "mean", p)
+    perf_mean_MAR = c("MAR", "mean", p)
+    perf_mean_MNAR = c("MNAR", "mean", p)
+    
+    perf_reg_MCAR = c("MCAR", "reg", p)
+    perf_reg_MAR = c("MAR", "reg", p)
+    perf_reg_MNAR = c("MNAR", "reg", p)
+    
+    perf_s_reg_MCAR = c("MCAR", "s_reg", p)
+    perf_s_reg_MAR = c("MAR", "s_reg", p)
+    perf_s_reg_MNAR = c("MNAR", "s_reg", p)
+    
+    perf_mi5_MCAR = c("MCAR", "mi5", p)
+    perf_mi5_MAR = c("MAR", "mi5", p)
+    perf_mi5_MNAR = c("MNAR", "mi5", p)
+    
+    perf_mi15_MCAR = c("MCAR", "mi15", p)
+    perf_mi15_MAR = c("MAR", "mi15", p)
+    perf_mi15_MNAR = c("MNAR", "mi15", p)
+    
+    
+    for (i in 1:n_it) {
+      
+      XY = py$generate_data(
+        n_samples = n,
+        n_informative = 8,
+        n_features = 10,
+        n_redundant = 2,
+        random_state = i
+      )
+      X = XY[[1]]
+      Y = XY[[2]]
+      
+      X_NA_MCAR = py$mask_data_mcar(X, prob = p)
+      X_NA_MAR = py$mask_data_mar(X, prob1 = p-p/2, prob2 = p+p/2)
+      X_NA_MNAR = py$mask_data_mnar(X, prob1 = p-p/2, prob2 = p+p/2)
+      
+      print("mean")
+      
+      #mean
+      X_mean_MCAR = mice::complete(mice::mice(
+        X_NA_MCAR,
+        method = "mean",
+        m = 1,
+        maxit = 1
+      ))
+      X_mean_MAR = mice::complete(mice::mice(
+        X_NA_MAR,
+        method = "mean",
+        m = 1,
+        maxit = 1
+      ))
+      X_mean_MNAR = mice::complete(mice::mice(
+        X_NA_MNAR,
+        method = "mean",
+        m = 1,
+        maxit = 1
+      ))
+      
+      print("reg")
+      
+      #reg
+      X_reg_MCAR = mice::complete(mice::mice(X_NA_MCAR, method = "norm.predict", m =
+                                             1))
+      X_reg_MAR = mice::complete(mice::mice(X_NA_MAR, method = "norm.predict", m =
+                                             1))
+      X_reg_MNAR = mice::complete(mice::mice(X_NA_MNAR, method = "norm.predict", m =
+                                             1))
+      print("s_reg")
+      
+      #s_reg
+      X_s_reg_MCAR = mice::complete(mice::mice(X_NA_MCAR, method = "norm.nob", m = 1))
+      X_s_reg_MAR = mice::complete(mice::mice(X_NA_MAR, method = "norm.nob", m = 1))
+      X_s_reg_MNAR = mice::complete(mice::mice(X_NA_MNAR, method = "norm.nob", m = 1))
+      
+      print("mi5")
+      
+      #mi5
+      X_mi5_MCAR = mice::complete(mice::mice(X_NA_MCAR, m = 5, maxit = 5))
+      X_mi5_MAR = mice::complete(mice::mice(X_NA_MAR, m = 5, maxit = 5))
+      X_mi5_MNAR = mice::complete(mice::mice(X_NA_MNAR, m = 5, maxit = 5))
+      
+      print("mi15")
+      
+      #mi15
+      X_mi15_MCAR = mice::complete(mice::mice(X_NA_MCAR, m = 15, maxit = 5))
+      X_mi15_MAR = mice::complete(mice::mice(X_NA_MAR, m = 15, maxit = 5))
+      X_mi15_MNAR = mice::complete(mice::mice(X_NA_MNAR, m = 15, maxit = 5))
+      
+      
+      print("complete")
+      
+      # complete routine
+      splitted = py$train_test_split(X, Y, test_size = 0.2, random_state = as.integer(i))
+      X_train = splitted[[1]]
+      X_test = splitted[[2]]
+      y_train = splitted[[3]]
+      y_test = splitted[[4]]
+      
+      perf = append(perf, py$svcPerf(X_train, X_test, y_train, y_test))
+      
+      print("mcar")
+      
+      # MCAR routine #################
+      splitted = py$train_test_split(X_mean_MCAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mean_MCAR = splitted[[1]]
+      X_test_mean_MCAR = splitted[[2]]
+      y_train_mean_MCAR = splitted[[3]]
+      y_test_mean_MCAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_reg_MCAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_reg_MCAR = splitted[[1]]
+      X_test_reg_MCAR = splitted[[2]]
+      y_train_reg_MCAR = splitted[[3]]
+      y_test_reg_MCAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_s_reg_MCAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_s_reg_MCAR = splitted[[1]]
+      X_test_s_reg_MCAR = splitted[[2]]
+      y_train_s_reg_MCAR = splitted[[3]]
+      y_test_s_reg_MCAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_mi5_MCAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mi5_MCAR = splitted[[1]]
+      X_test_mi5_MCAR = splitted[[2]]
+      y_train_mi5_MCAR = splitted[[3]]
+      y_test_mi5_MCAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_mi15_MCAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mi15_MCAR = splitted[[1]]
+      X_test_mi15_MCAR = splitted[[2]]
+      y_train_mi15_MCAR = splitted[[3]]
+      y_test_mi15_MCAR = splitted[[4]]
+      
+      
+      perf_mean_MCAR = append(perf_mean_MCAR,
+                         py$svcPerf(X_train_mean_MCAR, X_test_mean_MCAR, y_train_mean_MCAR, y_test_mean_MCAR))
+      perf_reg_MCAR = append(perf_reg_MCAR,
+                        py$svcPerf(X_train_reg_MCAR, X_test_reg_MCAR, y_train_reg_MCAR, y_test_reg_MCAR))
+      perf_s_reg_MCAR = append(
+        perf_s_reg_MCAR,
+        py$svcPerf(
+          X_train_s_reg_MCAR,
+          X_test_s_reg_MCAR,
+          y_train_s_reg_MCAR,
+          y_test_s_reg_MCAR
+        )
+      )
+      perf_mi5_MCAR = append(perf_mi5_MCAR,
+                       py$svcPerf(X_train_mi5_MCAR, X_test_mi5_MCAR, y_train_mi5_MCAR, y_test_mi5_MCAR))
+      perf_mi15_MCAR = append(perf_mi15_MCAR,
+                       py$svcPerf(X_train_mi15_MCAR, X_test_mi15_MCAR, y_train_mi15_MCAR, y_test_mi15_MCAR))
+      
+       # MAR routine #################
+      splitted = py$train_test_split(X_mean_MAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mean_MAR = splitted[[1]]
+      X_test_mean_MAR = splitted[[2]]
+      y_train_mean_MAR = splitted[[3]]
+      y_test_mean_MAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_reg_MAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_reg_MAR = splitted[[1]]
+      X_test_reg_MAR = splitted[[2]]
+      y_train_reg_MAR = splitted[[3]]
+      y_test_reg_MAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_s_reg_MAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_s_reg_MAR = splitted[[1]]
+      X_test_s_reg_MAR = splitted[[2]]
+      y_train_s_reg_MAR = splitted[[3]]
+      y_test_s_reg_MAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_mi5_MAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mi5_MAR = splitted[[1]]
+      X_test_mi5_MAR = splitted[[2]]
+      y_train_mi5_MAR = splitted[[3]]
+      y_test_mi5_MAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_mi15_MAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mi15_MAR = splitted[[1]]
+      X_test_mi15_MAR = splitted[[2]]
+      y_train_mi15_MAR = splitted[[3]]
+      y_test_mi15_MAR = splitted[[4]]
+      
+      
+      perf_mean_MAR = append(perf_mean_MAR,
+                         py$svcPerf(X_train_mean_MAR, X_test_mean_MAR, y_train_mean_MAR, y_test_mean_MAR))
+      perf_reg_MAR = append(perf_reg_MAR,
+                        py$svcPerf(X_train_reg_MAR, X_test_reg_MAR, y_train_reg_MAR, y_test_reg_MAR))
+      perf_s_reg_MAR = append(
+        perf_s_reg_MAR,
+        py$svcPerf(
+          X_train_s_reg_MAR,
+          X_test_s_reg_MAR,
+          y_train_s_reg_MAR,
+          y_test_s_reg_MAR
+        )
+      )
+      perf_mi5_MAR = append(perf_mi5_MAR,
+                       py$svcPerf(X_train_mi5_MAR, X_test_mi5_MAR, y_train_mi5_MAR, y_test_mi5_MAR))
+      perf_mi15_MAR = append(perf_mi15_MAR,
+                       py$svcPerf(X_train_mi15_MAR, X_test_mi15_MAR, y_train_mi15_MAR, y_test_mi15_MAR))
+      
+       # MNAR routine #################
+      splitted = py$train_test_split(X_mean_MNAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mean_MNAR = splitted[[1]]
+      X_test_mean_MNAR = splitted[[2]]
+      y_train_mean_MNAR = splitted[[3]]
+      y_test_mean_MNAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_reg_MNAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_reg_MNAR = splitted[[1]]
+      X_test_reg_MNAR = splitted[[2]]
+      y_train_reg_MNAR = splitted[[3]]
+      y_test_reg_MNAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_s_reg_MNAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_s_reg_MNAR = splitted[[1]]
+      X_test_s_reg_MNAR = splitted[[2]]
+      y_train_s_reg_MNAR = splitted[[3]]
+      y_test_s_reg_MNAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_mi5_MNAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mi5_MNAR = splitted[[1]]
+      X_test_mi5_MNAR = splitted[[2]]
+      y_train_mi5_MNAR = splitted[[3]]
+      y_test_mi5_MNAR = splitted[[4]]
+      
+      splitted = py$train_test_split(X_mi15_MNAR,
+                                     Y,
+                                     test_size = 0.2,
+                                     random_state = as.integer(i))
+      X_train_mi15_MNAR = splitted[[1]]
+      X_test_mi15_MNAR = splitted[[2]]
+      y_train_mi15_MNAR = splitted[[3]]
+      y_test_mi15_MNAR = splitted[[4]]
+      
+      
+      perf_mean_MNAR = append(perf_mean_MNAR,
+                         py$svcPerf(X_train_mean_MNAR, X_test_mean_MNAR, y_train_mean_MNAR, y_test_mean_MNAR))
+      perf_reg_MNAR = append(perf_reg_MNAR,
+                        py$svcPerf(X_train_reg_MNAR, X_test_reg_MNAR, y_train_reg_MNAR, y_test_reg_MNAR))
+      perf_s_reg_MNAR = append(
+        perf_s_reg_MNAR,
+        py$svcPerf(
+          X_train_s_reg_MNAR,
+          X_test_s_reg_MNAR,
+          y_train_s_reg_MNAR,
+          y_test_s_reg_MNAR
+        )
+      )
+      perf_mi5_MNAR = append(perf_mi5_MNAR,
+                       py$svcPerf(X_train_mi5_MNAR, X_test_mi5_MNAR, y_train_mi5_MNAR, y_test_mi5_MNAR))
+      perf_mi15_MNAR = append(perf_mi15_MNAR,
+                       py$svcPerf(X_train_mi15_MNAR, X_test_mi15_MNAR, y_train_mi15_MNAR, y_test_mi15_MNAR))
+      
+      
+      
+      
+    }
+    results = rbind(results, perf, perf_mean_MCAR, perf_mean_MAR, perf_mean_MNAR,
+                    perf_reg_MCAR, perf_reg_MAR, perf_reg_MNAR,
+                    perf_s_reg_MCAR, perf_s_reg_MAR, perf_s_reg_MNAR,
+                    perf_mi5_MCAR, perf_mi5_MAR, perf_mi5_MNAR, 
+                    perf_mi15_MCAR, perf_mi15_MAR, perf_mi15_MNAR)
+    
+    
+  }
+  write.table(results,"./sim_results.csv", sep=",", row.names = FALSE, col.names=FALSE)
 }
 ```
 
 
 
 ```{r}
-perfs = run_simulation(n=1000, n_it=5, missing_mechanism = "MCAR", prob = 0.2)
+perfs = run_simulation(n=1000, n_it=3,  prob = 0.1)
 ```
 
 
