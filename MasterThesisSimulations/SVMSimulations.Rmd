@@ -78,7 +78,7 @@ plt.show()
 
 def generate_data(n_samples, n_informative, n_features, n_redundant, random_state):
   X, Y = make_classification(n_samples=int(n_samples), n_informative=int(n_informative),
-    n_features=int(n_features), flip_y=0.01, n_redundant=int(n_redundant), n_clusters_per_class=1, random_state = int(random_state))
+    n_features=int(n_features), flip_y=0.01, n_redundant=int(n_redundant), n_clusters_per_class=1, random_state = int(random_state), class_sep=0.8)
   return (X, Y)
 
 def mask_data_mcar(X, prob):
@@ -496,12 +496,14 @@ run_simulation = function(n = 1000,
 
 
 ```{r}
-perfs = run_simulation(n=1000, n_it=3,  prob = 0.1)
+start_time = Sys.time()
+perfs = run_simulation(n=1000, n_it=2000,  prob = c(0.1, 0.2, 0.3, 0.4))
+end_time = Sys.time()
 ```
 
 
 ```{r}
-boxplot(perfs)
+end_time - start_time
 ```
 
 
