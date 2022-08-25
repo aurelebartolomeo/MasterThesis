@@ -73,25 +73,21 @@ plt.show()
 
 # Simulations
 
-## Useful functions
-
 ```{python}
 
-# Data generation with sklearn 
+# useful functions
+
 def generate_data(n_samples, n_informative, n_features, n_redundant, random_state):
   X, Y = make_classification(n_samples=int(n_samples), n_informative=int(n_informative),
     n_features=int(n_features), flip_y=0.01, n_redundant=int(n_redundant), n_clusters_per_class=1, random_state = int(random_state), class_sep=0.8)
   return (X, Y)
 
-
-# Data masking (MCAR)
 def mask_data_mcar(X, prob):
   X = X.copy()
   mask = np.random.binomial(n=1,p=prob,size=X.shape).astype(bool)
   X[mask] = None
   return X
 
-# Data masking (MAR)
 def mask_data_mar(X, prob1=0.2, prob2=0.5):
   X = X.copy()
   n = len(X)
@@ -111,7 +107,6 @@ def mask_data_mar(X, prob1=0.2, prob2=0.5):
   X[np.array(mask)]=None
   return X
 
-# Data masking (MNAR)
 def mask_data_mnar(X, prob1=0.2, prob2=0.5):
   X = X.copy()
   n = len(X)
@@ -133,7 +128,6 @@ def mask_data_mnar(X, prob1=0.2, prob2=0.5):
   return X
   
 
-# Performance assessment (accuracy)
 def svcPerf(X_train, X_test, y_train, y_test):
   svc = SVC()
   svc.fit(X_train, y_train)
@@ -142,6 +136,38 @@ def svcPerf(X_train, X_test, y_train, y_test):
 
 ```
 
+```{r}
+# data generation
+perf = c()
+perf_NA = c()
+for(i in 1:100){
+XY = py$generate_data(n_samples=100, n_informative=3,
+    n_features=3, n_redundant=0, random_state = i)
+X = XY[[1]]
+Y = XY[[2]]
+
+X_NA = py$mask_data_mcar(X, prob = 0.2)
+
+X_NA_imputed = mice::complete(mice::mice(X_NA))
+
+splitted = py$train_test_split(X, Y, test_size=0.2, random_state=as.integer(i))
+X_train = splitted[[1]]
+X_test = splitted[[2]]
+y_train = splitted[[3]]
+y_test = splitted[[4]]
+
+splitted = py$train_test_split(X_NA_imputed, Y, test_size=0.2, random_state=as.integer(i))
+X_train_NA = splitted[[1]]
+X_test_NA = splitted[[2]]
+y_train_NA = splitted[[3]]
+y_test_NA = splitted[[4]]
+
+perf = append(perf, py$svcPerf(X_train, X_test, y_train, y_test))
+perf_NA = append(perf_NA, py$svcPerf(X_train_NA, X_test_NA, y_train_NA, y_test_NA))
+
+}
+
+```
 
 
 
