@@ -1,0 +1,152 @@
+---
+title: "Results"
+author: "Aurèle Bartolomeo"
+date: '2022-08-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("dplyr")
+library("ggplot2")
+library("reshape")
+```
+
+
+```{r}
+perf <- read.csv("true_results.csv", header=FALSE)
+colnames(perf)[colnames(perf) == 'V3'] <- 'prob'
+perf <- perf %>% slice(-c(17, 33, 49))
+
+```
+
+# complete dataset analysis
+
+```{r}
+comp = perf[which(perf$V1=="complete"), ]
+comp = comp[, -which(names(perf) %in% c("V1","V2"))]
+```
+
+```{r}
+tcomp = t(comp)
+colnames(tcomp)=tcomp[c(1),]
+tcomp=tcomp[-c(1),]
+#boxplot(tcomp)
+names(tcomp) = NULL
+tcomp = data.frame(tcomp)
+p <- ggplot(tcomp, aes(x="", y=tcomp)) + 
+  geom_boxplot()
+p
+```
+
+
+
+# Boxplots for all situations
+
+```{r}
+p = c(0.1,0.2,0.3,0.4)
+
+for(mech in c("MCAR", "MAR", "MNAR")){
+for(i in 1:4){
+
+mcar = perf[which((perf$V1=="complete" & perf$prob == 0.1)| (perf$V1 == mech & perf$prob == p[i])), ]
+mcar = mcar[, -which(names(perf) %in% c("V1","prob"))]
+
+tmcar = t(mcar)
+colnames(tmcar)=tmcar[c(1),]
+tmcar=tmcar[-c(1),]
+
+names(tmcar) = NULL
+tmcar = data.frame(tmcar)
+
+stmcar = stack(tmcar)
+
+stmcar$ind = as.character(stmcar$ind)
+
+stmcar$ind[stmcar$ind == "X.."] = "complete"
+
+stmcar$ind = as.factor(stmcar$ind)
+stmcar$values = as.numeric(stmcar$values)
+
+print(ggplot(stmcar, aes(x = as.factor(ind), y=values)) 
+      + geom_boxplot() +xlab("method") + ylab("accuracy")
+      + ggtitle(paste(mech, " mechanism (prob=", p[i], ")."))
+      + coord_cartesian(ylim=c(0.7, 1)))
+
+#boxplot(stmcar$values ~ stmcar$ind)
+}
+}
+```
+
+
+
+```{r}
+mech = "MNAR"
+i=1
+p=c(0.4)
+
+mcar = perf[which((perf$V1=="complete" & perf$prob == 0.1)| (perf$V1 == mech & perf$prob == p[i])), ]
+mcar = mcar[, -which(names(perf) %in% c("V1","prob"))]
+
+tmcar = t(mcar)
+colnames(tmcar)=tmcar[c(1),]
+tmcar=tmcar[-c(1),]
+
+names(tmcar) = NULL
+tmcar = data.frame(tmcar)
+
+stmcar = stack(tmcar)
+
+stmcar$ind = as.character(stmcar$ind)
+
+stmcar$ind[stmcar$ind == "X.."] = "complete"
+
+stmcar$ind = as.factor(stmcar$ind)
+stmcar$values = as.numeric(stmcar$values)
+
+# stmcar = stmcar[-which(stmcar$ind=="complete"), ]
+
+
+
+# Compute the analysis of variance
+res.aov <- aov(values ~ ind, data = stmcar)
+# Summary of the analysis
+summary(res.aov)
+```
+
+
+```{r}
+write.csv(round(TukeyHSD(res.aov)$ind, 3), file = "Tukey\\MNAR04.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
